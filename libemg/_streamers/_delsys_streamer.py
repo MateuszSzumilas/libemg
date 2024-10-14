@@ -113,14 +113,14 @@ class DelsysEMGStreamer(Process):
 
         def write_emg(emg):
             # update the samples in "emg"
-            self.smm.modify_variable("emg", lambda x: np.vstack((np.flip(emg,0), x))[:x.shape[0],:])
+            self.smm.modify_variable("emg", lambda x: np.vstack((np.flip(np.transpose(emg),0), x))[:x.shape[0],:])
             # update the number of samples retrieved
             self.smm.modify_variable("emg_count", lambda x: x + emg.shape[0])
         self.add_emg_handler(write_emg)
 
         def write_imu(imu):
             # update the samples in "imu"
-            self.smm.modify_variable("imu", lambda x: np.vstack((np.flip(imu,0), x))[:x.shape[0],:])
+            self.smm.modify_variable("imu", lambda x: np.vstack((imu, x))[:x.shape[0],:])
             # update the number of samples retrieved
             self.smm.modify_variable("imu_count", lambda x: x + imu.shape[0])
             # sock.sendto(data_arr, (self.ip, self.port))

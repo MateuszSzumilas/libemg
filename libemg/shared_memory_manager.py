@@ -12,10 +12,14 @@ class SharedMemoryManager:
         try:
             sm = SharedMemory(tag, create=False)
             sm.unlink()
-        except:
-            pass
+        except Exception as e:
+            print(e)
         
-        smh = SharedMemory(tag, create=True, size=int(type().itemsize * np.prod(shape)))
+        try:
+            smh = SharedMemory(tag, create=True, size=int(type().itemsize * np.prod(shape)))
+        except:
+            smh = SharedMemory(tag, create=False, size=int(type().itemsize * np.prod(shape)))
+            
         data = np.ndarray((shape),dtype=type,buffer=smh.buf)
         data.fill(0)
         self.variables[tag] = {}

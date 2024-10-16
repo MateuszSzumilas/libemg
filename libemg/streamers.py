@@ -216,7 +216,7 @@ def delsys_streamer(shared_memory_items : list | None = None,
             shared_memory_items.append(["emg",       (3000,len(channel_list)), np.double])
             shared_memory_items.append(["emg_count", (1,1),    np.int32])
         if imu:
-            shared_memory_items.append(["imu",       (100,16), np.double])
+            shared_memory_items.append(["imu",       (500,9*len(channel_list)), np.double])
             shared_memory_items.append(["imu_count", (1,1),    np.int32])
     for item in shared_memory_items:
         item.append(Lock())
@@ -231,6 +231,10 @@ def delsys_streamer(shared_memory_items : list | None = None,
                                 channel_list=channel_list,
                                 timeout=timeout)
     delsys.start()
+	
+    # wait for shared memory initialization
+    delsys.smm_initialized.wait(timeout = 20)
+	
     return delsys, shared_memory_items
 
 

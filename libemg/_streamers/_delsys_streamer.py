@@ -79,8 +79,11 @@ class DelsysEMGStreamer(Process):
         self.aux_port = aux_port
         self.channel_list = channel_list
         self.timeout = timeout
+		
+		self.smm_initialized = Event()
 
         self._min_recv_size = 16 * self.BYTES_PER_CHANNEL
+		self._min_aux_recv_size = (9 * 16) * self.BYTES_PER_CHANNEL
 
     def connect(self):
         # create command socket and consume the servers initial response
@@ -110,6 +113,7 @@ class DelsysEMGStreamer(Process):
         self.smm = SharedMemoryManager()
         for item in self.shared_memory_items:
             self.smm.create_variable(*item)
+		self.smm_initialized.set()
 
         def write_emg(emg):
             # update the samples in "emg"
@@ -139,12 +143,16 @@ class DelsysEMGStreamer(Process):
                     for e in self.emg_handlers:
                         e(data)
                 if self.imu:
-                    packet = self._aux_socket.recv(self._min_recv_size)
-                    data = np.asarray(struct.unpack('<'+'f'*16, packet))
+                    packet = self._aux_socket.recv(self._min_aux_recv_size)
+                    data = np.asarray(struct.unpack('<'+'f'*16*9, packet))
                     assert np.any(data!=0), "IMU not currently working"
-                    data = data
                     if len(data.shape)==1:
-                        data = data[None, :]
+                        data = data.reshape((-1,9))[self.channel_list, :]
+						data = data.reshape(-1)[None, :]
+					else: 
+						data = np.reshape(data, (data.shape[0], 9, -1))
+						data = data[:,self.channel_list,:]
+						data = np.reshape(data, (data.shape[0], -1))
                     for i in self.imu_handlers:
                         i(data)
                 A = 1

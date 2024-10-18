@@ -1,4 +1,5 @@
 import socket
+import select
 import struct
 import numpy as np
 import pickle
@@ -101,6 +102,7 @@ class DelsysEMGStreamer(Process):
             (self.host, self.aux_port), self.timeout)
         self._aux_socket.setblocking(1)
 
+        self._rd_sockets = [self._data_socket, self._aux_socket]
         self._send_cmd('START')
 
     def add_emg_handler(self, h):
@@ -134,27 +136,30 @@ class DelsysEMGStreamer(Process):
 
         while True:
             try:
-                if self.emg:
-                    packet = self._data_socket.recv(self._min_recv_size)
-                    data = np.asarray(struct.unpack('<'+'f'*16, packet))
-                    data = data[self.channel_list]
-                    if len(data.shape)==1:
-                        data = data[:, None]
-                    for e in self.emg_handlers:
-                        e(data)
-                if self.imu:
-                    packet = self._aux_socket.recv(self._min_aux_recv_size)
-                    data = np.asarray(struct.unpack('<'+'f'*16*9, packet))
-                    assert np.any(data!=0), "IMU not currently working"
-                    if len(data.shape)==1:
-                        data = data.reshape((-1,9))[self.channel_list, :]
-                        data = data.reshape(-1)[None, :]
-                    else: 
-                        data = np.reshape(data, (data.shape[0], 9, -1))
-                        data = data[:,self.channel_list,:]
-                        data = np.reshape(data, (data.shape[0], -1))
-                    for i in self.imu_handlers:
-                        i(data)
+                ready_sockets, _, _ = select.select(self._rd_sockets, [], [])
+                
+                for sock in ready_sockets:
+                    if (self.emg and sock == self._data_socket):
+                        packet = sock.recv(self._min_recv_size)
+                        data = np.asarray(struct.unpack('<'+'f'*16, packet))
+                        data = data[self.channel_list]
+                        if len(data.shape)==1:
+                            data = data[:, None]
+                        for e in self.emg_handlers:
+                            e(data)
+                    elif (self.imu and sock == self._aux_socket):
+                        packet = sock.recv(self._min_aux_recv_size)
+                        data = np.asarray(struct.unpack('<'+'f'*16*9, packet))
+                        assert np.any(data!=0), "IMU not currently working"
+                        if len(data.shape)==1:
+                            data = data.reshape((-1,9))[self.channel_list, :]
+                            data = data.reshape(-1)[None, :]
+                        else: 
+                            data = np.reshape(data, (data.shape[0], 9, -1))
+                            data = data[:,self.channel_list,:]
+                            data = np.reshape(data, (data.shape[0], -1))
+                        for i in self.imu_handlers:
+                            i(data)
                 A = 1
 
             except Exception as e:
